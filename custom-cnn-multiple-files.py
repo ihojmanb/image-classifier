@@ -9,6 +9,12 @@ old_v = tf.logging.get_verbosity()
 tf.logging.set_verbosity(tf.logging.ERROR)
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
+
+n_classes = 6
+shape = 28
+n_channels = 3
+epochs = 2 
+
 # defining useful methods
 def count_csv_rows(csvfile):
     total_rows = 0
@@ -40,28 +46,43 @@ def process_data(img_df, labels_df, img_shape):
 
     return np_x, np_y
 
+
+def ConvLayer(input_layer,n_filters,f_shape, name):
+    return tf.layers.conv2d(inputs=input_layer, filters=n_filters, kernel_size=f_shape,
+        strides=1, padding="same", name=name, activation=tf.nn.relu)
+
+def Pooling(input_layer,name):
+    return tf.layers.max_pooling2d(inputs=input_layer, pool_size=2,
+        strides=2, padding="same", name=name)
+
+def OutputLayer(dense_layer):
+    return tf.layers.dense(inputs=dense_layer, units=n_classes)
+
+
 #defining model
 def my_cnn_arch(input_layer):
     # Defining filters
-    number_of_filters = 32
-    filter_shape = 3
+    n_filters = 32
+    f_shape = 3
 
     # input -> first layer
-    conv_layer1 = tf.layers.conv2d(inputs=input_layer, filters=number_of_filters, kernel_size=filter_shape,
-                                        strides=1, padding="same", name='conv_layer1', activation=tf.nn.relu)
-    pool_layer_1 = tf.layers.max_pooling2d(inputs=conv_layer1, pool_size=2,
-                                              strides=2, padding="same", name='pool_layer1')
-    # first layer output -> second layer
-    conv_layer2 = tf.layers.conv2d(inputs=pool_layer_1, filters=2*number_of_filters,kernel_size=filter_shape,
-                                        strides=1, padding="same", name='conv_layer2', activation=tf.nn.relu)
-    pool_layer_2 = tf.layers.max_pooling2d(inputs=conv_layer2, pool_size=2,
-                                              strides=2, padding="same", name='pool_layer1')
-    flattened_input = tf.layers.flatten(inputs=pool_layer_2)
-    dense_layer_1 = tf.layers.dense(inputs=flattened_input, units=1024, activation= tf.nn.relu)
-    # DROPOUT?
-    output_layer = tf.layers.dense(inputs=dense_layer_1, units=6)
+    conv_layer1 = ConvLayer(input_layer, n_filters, f_shape, 'conv_layer1')
+    pool_layer1 = Pooling(conv_layer1, 'pool_layer1')
 
-    return output_layer
+    # first layer output -> second layer
+    conv_layer2 = ConvLayer(pool_layer1, 2*n_filters, f_shape, 'conv_layer2')
+
+    pool_layer2 = Pooling(conv_layer2, 'pool_layer2')
+
+    flat_layer = tf.layers.flatten(inputs=pool_layer2)
+
+    dense_layer1 = tf.layers.dense(inputs=flat_layer, units=1024, activation= tf.nn.relu)
+    
+    dropout = tf.layers.dropout(inputs= dense_layer1, rate=0.4)
+
+    output = OutputLayer(dropout)
+
+    return output
 
 
 # paths for training images and labels, testing images and labels
@@ -101,10 +122,6 @@ n_rows_train_file = count_csv_rows(train_label_path)
 n_rows_test_file = count_csv_rows(test_label_path)
 
 # Hyperparameters and constants regarding each dataset
-n_classes = 6
-shape = 28
-n_channels = 3
-epochs = 2 
 learning_rate = 0.001 
 batch_size = n_rows_train_file//10
 test_batch_size = n_rows_test_file//10
